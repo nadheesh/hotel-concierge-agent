@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Script A — representative traffic for hallucination and reasoning quality.
 
-Sends the 36 quality cases and writes one result row per case. Point Agent
+Sends the 10 quality cases and writes one result row per case. Point Agent
 Manager's hallucination and reasoning-quality evaluators at the resulting
 traffic; the `expected` and `ground_truth` fields in the fixture are the
 reference answers.

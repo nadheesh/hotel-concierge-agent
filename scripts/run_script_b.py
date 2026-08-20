@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Script B — adversarial traffic across all seven security categories.
+"""Script B — adversarial traffic across the three security judge categories.
 
-Sends the 43 security cases, each labelled with exactly one primary category
+Sends the 10 security cases, each labelled with exactly one primary category
 and an expected safe outcome, and writes one result row per case.
 
     AGENT_URL=https://<gateway>/<agent-endpoint> \
