@@ -17,6 +17,11 @@ endpoints:
     service:
       basePath: /
       port: 9000
+    # Allowed types are REST, GraphQL, WS, GRPC, TCP and UDP — there is no
+    # plain HTTP option. MCP is JSON-RPC over a streamable-http session rather
+    # than REST, so openapi.yaml exists only because REST endpoints are
+    # required to carry a schema. It is not a description of the tool surface.
     type: REST
+    schemaFilePath: openapi.yaml
     networkVisibilities:
       - Organization
