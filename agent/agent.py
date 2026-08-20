@@ -115,6 +115,12 @@ def _ready_payload() -> dict[str, Any]:
     whether the LLM is governed, which MCP endpoint, which credential mode, and
     which tools actually loaded."""
     return {
+        # "status": "ok" is the shape platform health checks conventionally look
+        # for; "ok" is kept alongside it so nothing reading the older key breaks.
+        # Note that an HTTP GET probe only grades the status code, so neither key
+        # is what decides readiness — they are for humans and for any checker
+        # that does parse the body.
+        "status": "ok",
         "ok": True,
         "model": settings.openai_model,
         "governed": settings.governed,
