@@ -39,6 +39,7 @@ import json
 import os
 import socket
 import socketserver
+import ssl
 import subprocess
 import sys
 import time
@@ -61,6 +62,7 @@ KNOWN_KEYS = (
     "AGENT_CLIENT_ID",
     "AGENT_CLIENT_SECRET",
     "AGENT_SCOPES",
+    "AGENT_INSECURE_TLS",
 )
 
 ENV_TEMPLATE = """# Console configuration. Generated {stamp}. Local use only, gitignored.
@@ -79,6 +81,13 @@ AGENT_CLIENT_SECRET=
 
 # Optional. Only set this if the gateway rejects tokens without a scope.
 AGENT_SCOPES=
+
+# Set to 1 ONLY against a dev cluster whose token endpoint serves a certificate
+# your machine cannot verify, such as a self-signed nip.io host. It disables
+# certificate verification for the token request, which means anything able to
+# intercept that request can present its own certificate and read the client
+# secret. Prefer pointing SSL_CERT_FILE at the cluster CA instead.
+AGENT_INSECURE_TLS=
 """
 
 
@@ -115,6 +124,33 @@ def chat_endpoint(base: str) -> str:
     if not base:
         return f"http://127.0.0.1:8000{CHAT_PATH}"
     return base if base.endswith(CHAT_PATH) else base + CHAT_PATH
+
+
+def _insecure_tls(env: dict[str, str]) -> bool:
+    return (env.get("AGENT_INSECURE_TLS") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _tls_context(env: dict[str, str]) -> ssl.SSLContext | None:
+    """Context for the token request, or None to use Python's default.
+
+    OpenChoreo dev clusters front the token endpoint with a certificate signed
+    by a CA the machine does not trust — a self-signed nip.io host — and urlopen
+    fails the handshake with CERTIFICATE_VERIFY_FAILED before any credential is
+    sent. curl papers over this with -k; there is no equivalent default here,
+    and PYTHONHTTPSVERIFY does not affect this code path.
+
+    Verification stays on unless AGENT_INSECURE_TLS is set, because turning it
+    off means an interceptor can present any certificate and receive the client
+    secret this server is holding precisely so the browser never sees it.
+    SSL_CERT_FILE pointed at the cluster CA is the better fix where the CA is
+    available; this exists for when it is not.
+    """
+    if not _insecure_tls(env):
+        return None
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 def _credential_complete(env: dict[str, str]) -> bool:
@@ -238,7 +274,7 @@ class Handler(SimpleHTTPRequestHandler):
             "Accept": "application/json",
         })
         try:
-            with urllib.request.urlopen(req, timeout=20) as r:
+            with urllib.request.urlopen(req, timeout=20, context=_tls_context(self.env)) as r:
                 payload = json.load(r)
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:400]
@@ -324,6 +360,14 @@ def main() -> None:
         if env.get("AGENT_SCOPES"):
             print(f"  scopes      {env['AGENT_SCOPES']}", flush=True)
         print("\n  The client secret stays here. The browser only receives a token.", flush=True)
+
+    if _insecure_tls(env):
+        print("\n  WARNING: AGENT_INSECURE_TLS is set. The token request does not verify",
+              flush=True)
+        print("           the server's certificate, so anything able to intercept it can",
+              flush=True)
+        print("           present its own and receive the client secret. Dev clusters only.",
+              flush=True)
 
     print("\n  Ctrl-C to stop.\n", flush=True)
     httpd.serve_forever()
