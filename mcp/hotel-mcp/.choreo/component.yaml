@@ -32,7 +32,12 @@ endpoints:
     displayName: Hotel MCP (streamable-http)
     service:
       basePath: /
-      port: 9000
+      # 8080, not 9000. Choreo injects PORT=8080 into the container at runtime,
+      # runtime env overrides the image ENV, and server.py honours PORT — so the
+      # app listens on 8080 no matter what the Dockerfile says. Declaring 9000
+      # here pointed the gateway at a port with no listener: every request hung
+      # until the client gave up, and the gateway logged ServiceHost="-".
+      port: 8080
     # Allowed types are REST, GraphQL, WS, GRPC, TCP and UDP — no plain HTTP.
     type: REST
     networkVisibilities:

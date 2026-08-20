@@ -14,10 +14,10 @@ COPY --chown=appuser:appuser . .
 
 USER 10001
 
-# Honour the platform-injected PORT; 9000 is only the local default. Hardcoding
-# a port is what left the agent listening on 8080 while its endpoint config
-# still said 8000.
-ENV PORT=9000
-EXPOSE 9000
+# 8080 matches what Choreo injects at runtime, so the image default and the
+# port declared in .choreo/component.yaml agree even if the injection ever goes
+# away. server.py still honours PORT, so an explicit override wins over this.
+ENV PORT=8080
+EXPOSE 8080
 
 CMD ["python", "server.py"]
