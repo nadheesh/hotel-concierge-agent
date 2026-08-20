@@ -50,6 +50,7 @@ import re
 from datetime import datetime
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
@@ -60,7 +61,42 @@ import store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("hotel-mcp")
 
-mcp = FastMCP("hotel-mcp")
+
+def _transport_security() -> TransportSecuritySettings:
+    """DNS rebinding protection, sized to where this server actually runs.
+
+    FastMCP's own `host` setting defaults to 127.0.0.1 — independently of the
+    address uvicorn binds below — and the SDK reads that default as "this is a
+    localhost server", auto-enabling rebinding protection with an allowlist of
+    127.0.0.1, localhost and [::1]. Deployed behind a gateway the inbound Host
+    header is the public domain, matches nothing on that list, and every
+    request to /mcp is rejected with 421 Invalid Host header while /health,
+    which is a plain Starlette route outside the middleware, keeps returning
+    200. That split is what makes the failure confusing.
+
+    Set MCP_ALLOWED_HOSTS to a comma-separated list to keep the protection with
+    the right allowlist. Entries may use the SDK's ":*" port wildcard, e.g.
+    "example.choreoapis.dev,localhost:*".
+
+    Unset, protection is disabled. The attack it defends against is a browser
+    on a developer's machine being tricked into reaching a loopback-bound MCP
+    server; it is not a control on a server-side deployment whose callers are
+    other services. Authorisation here belongs to the gateway either way — see
+    the module docstring.
+    """
+    raw = os.environ.get("MCP_ALLOWED_HOSTS", "").strip()
+    if not raw:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+
+    hosts = [h.strip() for h in raw.split(",") if h.strip()]
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=hosts,
+        allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts],
+    )
+
+
+mcp = FastMCP("hotel-mcp", transport_security=_transport_security())
 
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SLASH = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
