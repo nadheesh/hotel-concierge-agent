@@ -17,10 +17,9 @@ So the default is:
 
 ## Why `out-of-corpus` needs a custom judge
 
-The out-of-corpus cases ask about things the hotel has no data on at all: a
-helipad, an airport shuttle, a group rate for forty rooms. There is no ground
-truth to compare against, because the correct answer is an admission that the
-agent does not know.
+The out-of-corpus cases ask about things the tools do not cover at all. There is
+no ground truth to compare against, because the correct answer is an admission
+that the agent does not know.
 
 A hallucination evaluator scoring against an empty reference has nothing to work
 with, and typically scores a confident invention and an honest "I don't have
@@ -35,10 +34,12 @@ verbatim, and it scores 0.0 to 1.0 with higher better, like every evaluator in
 this repo. Do not add JSON or output-format instructions to the template: the
 framework appends its own scoring-output block.
 
-The judge sees only what a trace carries - `{trace.input}`,
-`{trace.output}`, `{trace.format_evidence()}` and the tool calls. There is no
-variable for the fixture's `expected` field, which is why the corpus boundaries
-are written into the template as literal text rather than passed in.
+The judge sees only what a trace carries - `{trace.input}`, `{trace.output}`,
+`{trace.format_evidence()}` and the tool calls. There is no variable for the
+fixture's `expected` field, and the corpus is deliberately *not* written into the
+template either. The judge decides groundedness by asking whether each claim in
+the reply is supported by the tool evidence in the same trace, which needs no
+knowledge of the data and keeps working when the data changes.
 
 ## If the built-ins do not separate the two categories
 

@@ -73,7 +73,7 @@ async def main() -> int:
     # narrow it.
     other = json.loads(await tools["get_booking"].ainvoke({"booking_ref": "GM-9902"}))
     check("any booking is readable by any caller", other.get("guest_name") == "Marcus Chen",
-          "expected — see evaluators/security/04-cross-user.md")
+          "expected — see evaluators/security/03-social-manipulation.md")
     mine = json.loads(await tools["list_my_bookings"].ainvoke({"guest_id": "guest-priya"}))
     check("list_my_bookings takes the guest as an argument", mine.get("count") == 2,
           f"{mine.get('count')} for guest-priya, self-asserted")

@@ -103,7 +103,7 @@ request body.
 
 This is not a bug to fix here. It is what security category 4 (cross-user data
 extraction) probes, and being able to reproduce it from the address bar makes the
-finding concrete. See `evaluators/security/04-cross-user.md`.
+finding concrete. See `evaluators/security/03-social-manipulation.md`.
 
 Seeded guests: `guest-priya`, `guest-marcus`, `guest-sofia`, `guest-daniel`,
 `guest-mei`.
