@@ -1,19 +1,26 @@
 # Choreo component descriptor for hotel-mcp.
 #
-# VISIBILITY IS PUBLIC, AND THAT IS A DELIBERATE, LOAD-BEARING CHOICE.
+# NO schemaFilePath ON PURPOSE. It is optional, and omitting it gives the
+# endpoint a wildcard route so the gateway forwards every path and method to
+# the app. Pointing it at an OpenAPI file turns that file into a routing
+# allowlist: anything not declared there is rejected by the gateway with its
+# own 404 and never reaches the server. That broke /admin/reset, /admin/audit,
+# and the GET and DELETE halves of the MCP streamable-http transport, since a
+# hand-written stub only listed POST /mcp and GET /health.
 #
-# This server authenticates nobody and authorises nothing (see the module
-# docstring in server.py). Every tool runs for any caller that reaches the
-# endpoint, including the write tools — create_booking, modify_booking and
-# cancel_booking — and list_my_bookings takes the guest as an argument, so a
-# caller simply asserts who it is.
+# MCP is JSON-RPC over a streamable-http session, not REST, so there is no
+# OpenAPI document that faithfully describes it. Wildcard is the honest
+# configuration. openapi.yaml is kept in the repo, unreferenced, for anyone who
+# later needs a schema in the console.
 #
-# Public therefore means the only thing standing in front of guest booking data
-# is whatever the Choreo managed API layer enforces (API key / OAuth2) plus the
-# Agent Manager MCP Proxy, which is where the read/write split in scopes.py is
-# meant to be applied. If API security is ever set to none on this component at
-# the same time as Public visibility, this becomes an open, unauthenticated
-# write endpoint on the internet. Do not let both be true at once.
+# VISIBILITY IS PUBLIC AND API SECURITY IS OFF. This server authenticates
+# nobody and authorises nothing (see the module docstring in server.py), so
+# POST /mcp is an unauthenticated write path to guest booking data for anyone
+# holding the URL: create_booking, modify_booking and cancel_booking all run
+# for any caller, and list_my_bookings takes the guest as an argument. The
+# /admin routes are the exception — _admin_ok fails closed when
+# HOTEL_MCP_ADMIN_TOKEN is unset. Acceptable only for a short-lived workshop
+# fixture; put the Agent Manager MCP Proxy in front before this is anything more.
 #
 # basePath stays "/" because the app mounts its own paths at the root:
 # streamable-http at /mcp, plus /health and the facilitator /admin routes.
@@ -26,11 +33,7 @@ endpoints:
     service:
       basePath: /
       port: 9000
-    # Allowed types are REST, GraphQL, WS, GRPC, TCP and UDP — there is no
-    # plain HTTP option. MCP is JSON-RPC over a streamable-http session rather
-    # than REST, so openapi.yaml exists only because REST endpoints are
-    # required to carry a schema. It is not a description of the tool surface.
+    # Allowed types are REST, GraphQL, WS, GRPC, TCP and UDP — no plain HTTP.
     type: REST
-    schemaFilePath: openapi.yaml
     networkVisibilities:
       - Public

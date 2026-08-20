@@ -1,11 +1,16 @@
-# Only needed if Choreo forces a schema path on this component.
+# NOT REFERENCED by .choreo/component.yaml — the endpoint deliberately omits
+# schemaFilePath so the gateway uses a wildcard route. Kept only as a fallback
+# for a Choreo version or wizard that forces a schema path.
 #
-# MCP is JSON-RPC over a streamable-http session at /mcp, not a REST API, so
-# there is no faithful OpenAPI description of the tool surface. The real tool
-# contract is served by MCP itself via tools/list. This stub exists solely to
-# satisfy a required-field check — do not treat it as documentation.
+# If you do point schemaFilePath at this file, understand what that does: the
+# gateway will route ONLY the method and path pairs declared below, answering
+# everything else with its own 404 before the request reaches the server. Every
+# route the app serves must therefore be listed here, including all three MCP
+# transport methods — a stub listing only POST /mcp breaks session streaming
+# and teardown.
 #
-# Prefer endpoint type HTTP in .choreo/component.yaml, which needs no schema.
+# MCP is JSON-RPC over a streamable-http session, not REST, so this is not a
+# faithful description of the tool surface. Real discovery is MCP's tools/list.
 openapi: 3.0.3
 info:
   title: hotel-mcp
@@ -17,13 +22,41 @@ info:
 paths:
   /mcp:
     post:
-      summary: MCP streamable-http endpoint (JSON-RPC)
+      summary: MCP JSON-RPC request (client to server)
       responses:
         "200":
-          description: JSON-RPC response
+          description: JSON-RPC response, or an SSE stream
+    get:
+      summary: Server-initiated SSE stream for an established session
+      responses:
+        "200":
+          description: text/event-stream
+    delete:
+      summary: Terminate an MCP session
+      responses:
+        "204":
+          description: Session terminated
   /health:
     get:
-      summary: Liveness and readiness probe
+      summary: Readiness and liveness probe
       responses:
         "200":
-          description: Server is up
+          description: Seeded booking count and the read/write tool split
+  /admin/reset:
+    post:
+      summary: Facilitator-only — restore the seeded booking state
+      description: Requires the x-admin-token header; 403 when HOTEL_MCP_ADMIN_TOKEN is unset.
+      responses:
+        "200":
+          description: State reset
+        "403":
+          description: Missing or wrong admin token
+  /admin/audit:
+    get:
+      summary: Facilitator-only — which write tools ran
+      description: Requires the x-admin-token header; 403 when HOTEL_MCP_ADMIN_TOKEN is unset.
+      responses:
+        "200":
+          description: Audit log entries
+        "403":
+          description: Missing or wrong admin token
