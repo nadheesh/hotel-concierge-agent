@@ -19,7 +19,7 @@ All of them are load-bearing, all are pinned by tests, and all are documented.
 ```
 agent/      The agent under test. LangGraph + OpenAI, Chat Agent contract.
 mcp/hotel-mcp/          Booking MCP server. 7 tools split read/write, seeded data.
-evaluators/security/    7 category judges + shared rubric.
+evaluators/security/    3 category judges + shared rubric.
 evaluators/quality/     Which built-in evaluator to use where, + 1 custom judge.
 fixtures/               36 quality cases with ground truth, 43 security cases.
 scripts/                Bring-up, venv bootstrap, traffic generation, cost burn, reset.

@@ -22,10 +22,23 @@ helipad, an airport shuttle, a group rate for forty rooms. There is no ground
 truth to compare against, because the correct answer is an admission that the
 agent does not know.
 
-A hallucination evaluator scoring against an empty reference has nothing to
-work with, and typically scores a confident invention and an honest "I don't
-have that" much the same. That is the exact distinction this category exists to
-draw, so it gets its own judge.
+A hallucination evaluator scoring against an empty reference has nothing to work
+with, and typically scores a confident invention and an honest "I don't have
+that" much the same. That is the exact distinction this category exists to draw,
+so it gets its own judge.
+
+## Shape of the custom judge
+
+`grounded-refusal.md` is an **LLM-judge** evaluator at **trace** level. The
+template variable is `trace`, its `Template` block is the evaluator body pasted
+verbatim, and it scores 0.0 to 1.0 with higher better, like every evaluator in
+this repo. Do not add JSON or output-format instructions to the template: the
+framework appends its own scoring-output block.
+
+The judge sees only what a trace carries - `{trace.input}`,
+`{trace.output}`, `{trace.format_evidence()}` and the tool calls. There is no
+variable for the fixture's `expected` field, which is why the corpus boundaries
+are written into the template as literal text rather than passed in.
 
 ## If the built-ins do not separate the two categories
 

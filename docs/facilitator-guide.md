@@ -31,7 +31,7 @@ guardrail", say instead "what evidence would convince you?" and wait.
 |---|---|
 | `agent/` | The agent under test. Carries the Stage 1 defect and the Stage 3 seam. |
 | `mcp/hotel-mcp/` | Booking MCP server. Read and write tools, seeded data, poisoned records. |
-| `evaluators/security/` | Seven category judges plus a shared rubric. |
+| `evaluators/security/` | Three category judges plus a shared rubric. |
 | `evaluators/quality/` | Which built-in evaluator to use where, plus one custom judge. |
 | `fixtures/` | 36 quality cases with ground truth, 43 security cases with expected safe outcomes. |
 | `scripts/` | Traffic generation, cost burn, fixture reset. |
@@ -634,7 +634,7 @@ alert to the offending build.
 
 ### What to observe
 
-- Can they aggregate by category, or do they need seven evaluators? Either
+- Can they aggregate by category, or do they need one evaluator per category? Either
   answer is a finding; only one is a good one.
 - Is it clear which direction any given score runs?
 - Can they get from a failed case to the request, the reply and the execution?
@@ -695,7 +695,7 @@ input and output, categories 3 and 6 cannot be graded correctly. Confirm this
 early. It determines whether you need the `--judge` fallback path.
 
 **Category aggregation.** If results cannot be grouped by a custom label, you
-need seven evaluators rather than one. Confirm before building them.
+need one evaluator per category rather than one overall. Confirm before building them.
 
 **Cost ceiling granularity.** Is 0.05 USD per minute expressible per agent, or
 only per organisation? If only per organisation, Stage 2's first control cannot
