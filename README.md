@@ -17,7 +17,7 @@ All of them are load-bearing, all are pinned by tests, and all are documented.
 ## Layout
 
 ```
-agent/hotel-agent/      The agent under test. LangGraph + OpenAI, Chat Agent contract.
+agent/      The agent under test. LangGraph + OpenAI, Chat Agent contract.
 mcp/hotel-mcp/          Booking MCP server. 7 tools split read/write, seeded data.
 evaluators/security/    7 category judges + shared rubric.
 evaluators/quality/     Which built-in evaluator to use where, + 1 custom judge.
@@ -32,15 +32,15 @@ vip_crew/               External CrewAI agent, for the external-agent extension.
 
 | # | Where | What | Used by |
 |---|---|---|---|
-| 1 | `agent/hotel-agent/mcp_client.py` | Date compatibility layer writes the wrong date and echoes the request back, so the reply looks correct | Exercise 1 |
-| 2 | `agent/hotel-agent/auth.py` | One static API key for every deployment. No agent identity, so no per-caller policy is possible | Exercise 3 |
-| 3 | `mcp/hotel-mcp` | `HOTEL_MCP_ENFORCE_GUEST_SCOPE=false` — any `booking:read` caller can read any booking | Exercise 4, category 4 |
-| 4 | `agent/hotel-agent/system_prompt.py` | No injection hardening, no terms-and-conditions instruction | Exercises 2 and 4 |
+| 1 | `agent/mcp_client.py` | Date compatibility layer writes the wrong date and echoes the request back, so the reply looks correct | Exercise 1 |
+| 2 | `agent/auth.py` | No credential configured, so MCP calls go out bare and every deployment can do everything | Exercise 3 |
+| 3 | `mcp/hotel-mcp` | Unsecured by design — nothing below the agent scopes access per guest | Exercise 4, category 4 |
+| 4 | `agent/system_prompt.py` | No injection hardening, no terms-and-conditions instruction | Exercises 2 and 4 |
 | 5 | `mcp/hotel-mcp/seed/bookings.json`, `policies.py` | Two planted injection payloads, in a booking record and in a policy document | Exercise 4, categories 2 and 3 |
-| 6 | `agent/hotel-agent/system_prompt.py` | `SYSTEM_PROMPT_VARIANT=broken` strips grounding without touching a tool | Exercise 4 regression |
+| 6 | `agent/system_prompt.py` | `SYSTEM_PROMPT_VARIANT=broken` strips grounding without touching a tool | Exercise 4 regression |
 
-`agent/hotel-agent/tests/` pins 1 and 4 in place. Run `pytest tests/ -q` before
-every session; 47 tests, about ten seconds. If they fail, someone has repaired
+`agent/tests/` pins 1 and 4 in place. Run `pytest tests/ -q` before
+every session; 55 tests, a couple of seconds. If they fail, someone has repaired
 the fixture and the exercises they support no longer work.
 
 ## The four exercises at a glance
@@ -49,22 +49,21 @@ the fixture and the exercises they support no longer work.
 |---|---|---|
 | **1** | Deploy, find why a plausible answer is wrong, promote, recover | Reading a trace to separate the model's decision from the agent's behaviour |
 | **2** | Cost ceiling, injection guardrail, terms-and-conditions decorator | Platform controls applied without touching business logic |
-| **3** | Read-only customer agent, read-write ops agent, same source | Agent identity and per-tool scopes |
+| **3** | Read-only customer agent, read-write ops agent, same source | Per-agent credentials and gateway-enforced tool scopes |
 | **4** | Quality and security evaluation, then production monitoring | Whether a score can be traced back to evidence |
 
 ## Quick start
 
 ```bash
-# 1. booking server
+# 1. booking server (unsecured: expose only behind a gateway)
 cd mcp/hotel-mcp && pip install -r requirements.txt
-export HOTEL_MCP_API_KEYS='dev-read;booking:read;customer-agent;guest-priya,dev-write;booking:read|booking:write;ops-agent'
 python server.py &                              # -> :9000/mcp
 
 # 2. agent
-cd ../../agent/hotel-agent && pip install -r requirements.txt
-pytest tests/ -q                                # 47 passed
+cd ../../agent && pip install -r requirements.txt
+pytest tests/ -q                                # 55 passed
 export OPENAI_API_KEY_DEFAULT=sk-...
-export HOTEL_MCP_URL=http://localhost:9000/mcp HOTEL_MCP_API_KEY=dev-read
+export HOTEL_MCP_URL=http://localhost:9000/mcp
 python main.py &                                # -> :8000
 
 # 3. confirm the Exercise 1 defect reproduces
@@ -115,7 +114,7 @@ server and hands the browser only a short-lived token; `pkce` uses
 authorization-code + PKCE and involves no secret at all.
 
 The agent performs **no** authentication. The platform gateway in front of it
-validates the token, and `agent/hotel-agent/agent.py` contains no inbound auth
+validates the token, and `agent/agent.py` contains no inbound auth
 logic — verified, and it must stay that way. An agent that checks its own tokens
 is not testing the platform. Full detail in [`web/README.md`](web/README.md).
 
@@ -130,12 +129,14 @@ double-instrument and distort the trace shape under evaluation.
 
 No credential is committed anywhere in this repository, and none should be.
 Every value arrives as an environment variable or a platform secret. The web
-widget in `agent/hotel-agent/web/` runs in the browser and must never be given
+widget in `agent/web/` runs in the browser and must never be given
 a key — watching whether a participant respects that is part of Exercise 1.
 
-Generate your own keys for `HOTEL_MCP_API_KEYS` and `HOTEL_MCP_ADMIN_TOKEN`,
-and use different ones in development and production. Environment isolation is
-one of the things the study observes.
+`mcp/hotel-mcp` is unsecured by design and must sit behind a gateway that is
+never bypassable — anything that can reach it directly can cancel any booking.
+Generate your own `HOTEL_MCP_ADMIN_TOKEN`, and give development and production
+different credentials throughout. Environment isolation is one of the things the
+study observes.
 
 ## Before the first session
 

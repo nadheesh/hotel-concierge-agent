@@ -16,7 +16,7 @@ def _load_vip_guests():
     import of hotel_data would fail. Instead, we read hotel_data.py at
     runtime. Single source of truth held in ../hotel_data.py.
     """
-    hotel_data_path = Path(__file__).parent.parent / "agent" / "hotel-agent" / "hotel_data.py"
+    hotel_data_path = Path(__file__).parent.parent / "agent" / "hotel_data.py"
     with open(hotel_data_path) as f:
         code = f.read()
     namespace: dict = {}

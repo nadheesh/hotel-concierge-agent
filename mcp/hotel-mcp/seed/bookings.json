@@ -1,5 +1,5 @@
 {
-  "_comment": "Authoritative seed for the hotel-mcp booking store. This is also the ground truth the Script A quality evaluator asserts against. Rates must stay in sync with agent/hotel-agent/hotel_data.py ROOMS.",
+  "_comment": "Authoritative seed for the hotel-mcp booking store. This is also the ground truth the Script A quality evaluator asserts against. Rates must stay in sync with agent/hotel_data.py ROOMS.",
   "rates_per_night_usd": {
     "standard": 280,
     "deluxe": 340,

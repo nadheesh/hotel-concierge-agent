@@ -67,9 +67,6 @@ def main() -> None:
         print(json.dumps(health, indent=2))
         if health.get("bookings") != len(EXPECTED):
             sys.exit(f"Expected {len(EXPECTED)} bookings, found {health.get('bookings')}.")
-        if health.get("require_auth") is not True:
-            print("\nWARNING: HOTEL_MCP_REQUIRE_AUTH is off. The least-privilege exercise "
-                  "cannot be demonstrated until it is on.", file=sys.stderr)
         print("\nBaseline restored.")
 
 

@@ -20,7 +20,7 @@ mkdir -p dev
 if [ ! -x "$VENV/bin/python" ]; then
   echo "No .venv found. Create it first:"
   echo "  python3 -m venv .venv"
-  echo "  .venv/bin/pip install -r agent/hotel-agent/requirements.txt -r mcp/hotel-mcp/requirements.txt"
+  echo "  .venv/bin/pip install -r agent/requirements.txt -r mcp/hotel-mcp/requirements.txt"
   exit 1
 fi
 
@@ -37,8 +37,6 @@ done
 
 if [ ! -f dev/.env ]; then
   echo "Generating dev/.env with fresh local keys..."
-  CUST=$("$VENV/bin/python" -c 'import secrets;print("cust_"+secrets.token_urlsafe(18))')
-  OPS=$("$VENV/bin/python" -c 'import secrets;print("ops_"+secrets.token_urlsafe(18))')
   ADMIN=$("$VENV/bin/python" -c 'import secrets;print(secrets.token_urlsafe(24))')
   cat > dev/.env <<ENV
 # Local fixture keys, generated $(date -u +%Y-%m-%dT%H:%M:%SZ). Local use only.
@@ -57,22 +55,23 @@ if [ ! -f dev/.env ]; then
 #OPENAI_URL=https://<project>-<component>.example/<endpoint>/
 #OPENAI_API_KEY=<AM JWT>
 
-OPENAI_MODEL=gpt-4o
+# Model is deliberately NOT set here. agent/.env owns it. Anything
+# exported by this script beats that file, so pinning a model here would
+# silently override your choice.
+#OPENAI_MODEL=
 # -----------------------------------------------------------------------------
 
-CUSTOMER_KEY=$CUST
-OPS_KEY=$OPS
 HOTEL_MCP_ADMIN_TOKEN=$ADMIN
 
-# Which credential the agent presents to hotel-mcp.
-#
-# Defaults to the write-capable key, because Exercises 1 and 2 happen BEFORE
-# least-privilege is configured: at that point one deployment does everything,
-# including moving and cancelling bookings.
-#
-# For Exercise 3, set this to \$OPS_KEY on the operations deployment and
-# \$CUSTOMER_KEY on the customer-facing one, and restart.
-AGENT_MCP_KEY=$OPS
+# Credential the agent presents to hotel-mcp. Empty locally: hotel-mcp enforces
+# nothing, so there is nothing to present. Against a gateway-fronted endpoint,
+# set HOTEL_MCP_API_KEY, or the HOTEL_MCP_TOKEN_URL/CLIENT_ID/CLIENT_SECRET
+# trio for OAuth2. See agent/auth.py.
+HOTEL_MCP_API_KEY=
+HOTEL_MCP_TOKEN_URL=
+HOTEL_MCP_CLIENT_ID=
+HOTEL_MCP_CLIENT_SECRET=
+HOTEL_MCP_SCOPES=
 
 SYSTEM_PROMPT_VARIANT=baseline
 HOTEL_MCP_LEGACY_DATE_COMPAT=true
@@ -114,11 +113,7 @@ if [ -z "${OPENAI_URL:-}" ] && [ -z "${OPENAI_API_KEY_DEFAULT:-}" ] && [ -n "${O
   esac
 fi
 
-export HOTEL_MCP_API_KEYS="${CUSTOMER_KEY};booking:read;customer-agent;guest-priya,${OPS_KEY};booking:read|booking:write;ops-agent"
-export HOTEL_MCP_REQUIRE_AUTH=true
-export HOTEL_MCP_ENFORCE_GUEST_SCOPE=false
 export HOTEL_MCP_URL="http://127.0.0.1:${MCP_PORT}/mcp"
-export HOTEL_MCP_API_KEY="${AGENT_MCP_KEY}"
 
 wait_for() {
   for _ in $(seq 1 60); do
@@ -138,7 +133,7 @@ curl -s "http://127.0.0.1:${MCP_PORT}/health" | jq .
 
 echo
 echo "Starting hotel-agent on :${AGENT_PORT} ..."
-( cd agent/hotel-agent; PORT="$AGENT_PORT" exec "$VENV/bin/python" main.py ) \
+( cd agent; PORT="$AGENT_PORT" exec "$VENV/bin/python" main.py ) \
   >"$ROOT/dev/agent.log" 2>&1 &
 echo $! > "$ROOT/dev/agent.pid"
 wait_for "http://127.0.0.1:${AGENT_PORT}/health" || { echo "agent did not come up. Tail of dev/agent.log:"; tail -20 dev/agent.log; exit 1; }

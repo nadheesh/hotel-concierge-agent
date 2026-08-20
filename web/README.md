@@ -23,7 +23,7 @@ the widget says so — that path is worth exercising deliberately, because
 telling a gateway rejection apart from an agent error is part of what the study
 observes.
 
-Do not add token checking to `agent/hotel-agent/`. An agent that validates its
+Do not add token checking to `agent/`. An agent that validates its
 own tokens is not testing the platform.
 
 ## Modes

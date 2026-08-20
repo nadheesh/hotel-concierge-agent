@@ -2,7 +2,7 @@
 
 > Historical log from the original concierge demo, kept for the dependency
 > notes. Paths have moved: `requirements.txt`, `agent.py` and `tests/` are now
-> under `agent/hotel-agent/`. For the current fixture see
+> under `agent/`. For the current fixture see
 > [docs/facilitator-guide.md](docs/facilitator-guide.md).
 
 ## Pre-flight: hello-world deploy validation

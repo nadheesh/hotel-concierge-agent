@@ -26,7 +26,7 @@ Verify the crew runs end-to-end before plugging in Agent Manager.
 
 ```bash
 cd vip_crew
-unset OPENAI_BASE_URL                    # ensure no leftover AM gateway from .env.local
+unset OPENAI_BASE_URL                    # ensure no leftover AM gateway from .env
 export OPENAI_API_KEY=sk-...
 uv run python crew.py VIP-042
 ```
@@ -36,10 +36,11 @@ prints at the end. Should complete in ~60s.
 
 ## Step 2 — Full integration (Agent Manager gateway + tracing)
 
-1. Fill `.env.local` (in the repo root, gitignored):
+1. Fill `vip_crew/.env` (gitignored):
 
 ```bash
-cp ../.env.local.example ../.env.local
+cd vip_crew
+cp .env.example .env
 # Edit: OPENAI_BASE_URL, OPENAI_API_KEY, AMP_OTEL_ENDPOINT, AMP_AGENT_API_KEY
 ```
 
@@ -47,7 +48,7 @@ cp ../.env.local.example ../.env.local
 
 ```bash
 cd vip_crew
-set -a; source ../.env.local; set +a
+set -a; source .env; set +a
 
 # Standard run:
 uv run amp-instrument python crew.py VIP-042

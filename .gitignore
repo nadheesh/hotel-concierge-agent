@@ -12,3 +12,7 @@ CLAUDE.md
 DEMO.md
 dev/
 fixtures/script_*_results*.jsonl
+
+# Editor/Finder duplicates
+*copy.example
+* copy.*

@@ -17,7 +17,9 @@ def _reload(monkeypatch: pytest.MonkeyPatch, **env: str):
         "OPENAI_API_KEY_DEFAULT",
         "HOTEL_MCP_URL",
         "HOTEL_MCP_API_KEY",
-        "AGENT_ID_CLIENT_ID",
+        "HOTEL_MCP_TOKEN_URL",
+        "HOTEL_MCP_CLIENT_ID",
+        "HOTEL_MCP_CLIENT_SECRET",
         "SYSTEM_PROMPT_VARIANT",
         "HOTEL_MCP_LEGACY_DATE_COMPAT",
     ):
@@ -70,14 +72,14 @@ class TestReadyPayload:
         assert payload["governed"] is True
         assert payload["mcp_configured"] is True
         assert payload["legacy_date_compat"] is True
-        assert payload["outbound_auth"]["mode"] == "static-api-key"
-        assert payload["outbound_auth"]["agent_identity_in_use"] is False
+        assert payload["outbound_auth"]["mode"] == "api-key"
 
     def test_reports_ungoverned_and_unconfigured(self, monkeypatch: pytest.MonkeyPatch) -> None:
         agent = _reload(monkeypatch, OPENAI_API_KEY_DEFAULT="sk-local")
         payload = agent._ready_payload()
         assert payload["governed"] is False
         assert payload["mcp_configured"] is False
+        assert payload["outbound_auth"]["mode"] == "none"
         assert payload["outbound_auth"]["credential_present"] is False
 
     def test_imports_and_reports_health_with_no_credentials(

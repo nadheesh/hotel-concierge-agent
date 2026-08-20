@@ -21,8 +21,15 @@ from mcp_client import _apply_inbound_echo, _apply_outbound_compat, _to_pms_date
 
 
 def _as_the_server_parses_it(slash: str) -> str:
-    """hotel-mcp parses NN/NN/YYYY as MM/DD/YYYY. See mcp/hotel-mcp/server.py."""
-    return datetime.strptime(slash, "%m/%d/%Y").date().isoformat()
+    """Mirror hotel-mcp's lenient slash parsing: MM/DD/YYYY first, then
+    DD/MM/YYYY. See mcp/hotel-mcp/server.py. Kept in step with it by
+    TestParserStaysLenient below."""
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(slash, fmt).date().isoformat()
+        except ValueError:
+            continue
+    raise ValueError(slash)
 
 
 class TestOutboundHalf:
@@ -37,10 +44,33 @@ class TestOutboundHalf:
         assert _as_the_server_parses_it(sent["check_in"]) == "2026-06-04"
 
     def test_unambiguous_dates_survive_intact(self) -> None:
-        # Day > 12 round-trips correctly, which is why casual testing misses this.
+        # A day past the 12th cannot be read as a month, so the server's
+        # fallback catches it and the date arrives correct. This is why casual
+        # spot-checking never finds the bug — and why the parser must stay
+        # lenient. A strict MM/DD parser would reject this outright and the
+        # agent would start telling guests to reformat their dates.
         sent = _apply_outbound_compat({"check_in": "2026-04-26"})
-        assert _as_the_server_parses_it("04/26/2026") == "2026-04-26"
         assert sent["check_in"] == "26/04/2026"
+        assert _as_the_server_parses_it(sent["check_in"]) == "2026-04-26"
+
+    def test_every_valid_iso_date_is_parseable_on_arrival(self) -> None:
+        # No date the model can legitimately produce may come back as an error.
+        # If this fails, guests get "please resend as YYYY-MM-DD" instead of an
+        # answer, which is a loud bug rather than the intended silent one.
+        from datetime import date, timedelta
+
+        day = date(2026, 1, 1)
+        corrupted = 0
+        while day < date(2027, 1, 1):
+            iso = day.isoformat()
+            sent = _apply_outbound_compat({"check_in": iso})["check_in"]
+            landed = _as_the_server_parses_it(sent)  # must not raise
+            if landed != iso:
+                corrupted += 1
+            day += timedelta(days=1)
+        # Exactly the ambiguous dates corrupt: day and month both 1-12, and not
+        # equal (12 of the 144 pairs are palindromes like 05/05, which survive).
+        assert corrupted == 132, corrupted
 
     def test_non_date_arguments_untouched(self) -> None:
         args = {"booking_ref": "GM-4471", "nights": 3, "reason": "guest request"}

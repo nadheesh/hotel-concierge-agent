@@ -40,7 +40,9 @@ governed by tool-level scopes. They are the control group.
 **hotel-mcp, over an MCP proxy** (`mcp_client.py`). Everything about bookings:
 `get_booking`, `list_my_bookings`, `search_availability`,
 `get_booking_policies`, `modify_booking`, `cancel_booking`, `create_booking`.
-Read tools require `booking:read`, write tools require `booking:write`.
+The gateway in front of hotel-mcp is what gates them — `booking:read` for the
+first four, `booking:write` for the last three. hotel-mcp itself enforces
+nothing.
 
 That split is what the least-privilege exercise is measured against.
 Restricting the booking tools must not disturb the native ones, and the native
@@ -59,7 +61,7 @@ itself a useful failure mode to observe. `/health` reports `mcp_tools_loaded`.
 | `main.py` | Entry point. Start command `python main.py`. |
 | `agent.py` | FastAPI app, LangGraph react loop, session handling |
 | `config.py` | Every setting, all from environment variables |
-| `auth.py` | **Outbound credential for MCP calls. The Exercise 3 seam.** |
+| `auth.py` | Outbound credential for MCP calls. API key, OAuth2, or nothing. |
 | `mcp_client.py` | MCP transport and tool wrapping. **Carries the Exercise 1 defect.** |
 | `tools.py` | Native tools |
 | `hotel_data.py` | Menu, recommendations, rooms, static policy strings |
@@ -89,18 +91,37 @@ off, or delete the block, to fix.
 agent is correct; they assert it is wrong in the specific reproducible way the
 exercise depends on. If they fail, Exercise 1 has no root cause left.
 
-### 2. The static credential — Exercise 3
+### 2. No credential by default — Exercise 3
 
-`auth.py` presents one static API key on every MCP call, identical in every
-deployment built from this repository. The key belongs to the deployment
-configuration rather than to the agent, so the platform cannot tell one caller
-from another and cannot attach a policy to either.
+`auth.py` resolves whatever credential the environment supplies, in this order:
 
-`config.py` already reads the Agent Identity variables the platform injects.
-Nothing uses them. That gap is the exercise.
+| Configured | Header sent |
+|---|---|
+| `HOTEL_MCP_TOKEN_URL` + `CLIENT_ID` + `CLIENT_SECRET` | `Authorization: Bearer <token>` |
+| `HOTEL_MCP_API_KEY` | `<HOTEL_MCP_API_KEY_HEADER>: <key>` |
+| nothing | `{}` — the call goes out bare |
 
-`GET /health` reports the credential mode honestly under `outbound_auth`, so an
-operator can tell from outside the process which identity is in use.
+Out of the box nothing is set, so calls go out bare. hotel-mcp is unsecured, so
+they succeed, and every deployment built from this repository can do everything.
+
+OAuth2 beats an API key on purpose: an agent migrated to OAuth2 must not be
+silently downgraded by a stale key still sitting in its environment. A
+*partially* filled OAuth2 trio is treated as a misconfiguration rather than a
+fallback cue, and `/health` flags it as `oauth2_partially_configured` — that one
+is easy to create and looks fine from the outside.
+
+Nothing here assumes an Agent Manager Agent Identity. Any OAuth2 client the
+gateway trusts works, which matters because the identity often does not exist
+yet when someone first wires this up.
+
+Note what `auth.py` does **not** do: no tool allow-lists, no branching on tool
+names, no read/write distinction. It chooses a credential. The gateway decides
+what that credential may reach. An agent that polices itself is not testing the
+platform.
+
+`GET /health` reports the live mode under `outbound_auth`, because "the calls
+are failing" and "the calls are going out bare" look identical from a chat
+window.
 
 ### 3. Prompt omissions — Exercises 2 and 4
 
@@ -144,11 +165,12 @@ see `_llm_kwargs()`.
 |---|---|---|
 | `OPENAI_MODEL` | `gpt-4o` | Model |
 | `HOTEL_MCP_URL` | empty | MCP endpoint. Injected by the Tool Configuration. |
-| `HOTEL_MCP_API_KEY` | empty | Static MCP credential. Injected by the Tool Configuration. |
-| `AGENT_ID_TOKEN_URL` | empty | Agent Identity token endpoint |
-| `AGENT_ID_CLIENT_ID` | empty | Agent Identity client id |
-| `AGENT_ID_CLIENT_SECRET` | empty | Agent Identity client secret |
-| `AGENT_ID_SCOPES` | empty | Scopes to request. The platform grants the intersection. |
+| `HOTEL_MCP_API_KEY` | empty | API-key credential for the MCP gateway |
+| `HOTEL_MCP_API_KEY_HEADER` | `API-Key` | Header the gateway reads the key from |
+| `HOTEL_MCP_TOKEN_URL` | empty | OAuth2 token endpoint |
+| `HOTEL_MCP_CLIENT_ID` | empty | OAuth2 client id |
+| `HOTEL_MCP_CLIENT_SECRET` | empty | OAuth2 client secret |
+| `HOTEL_MCP_SCOPES` | empty | Scopes to request. The server grants what it grants. |
 | `SYSTEM_PROMPT_VARIANT` | `baseline` | `baseline`, `broken`, `broken-2` |
 | `HOTEL_MCP_LEGACY_DATE_COMPAT` | `true` | The Exercise 1 defect |
 
@@ -175,7 +197,7 @@ also confirms the environment injection landed:
 READY {"ok": true, "model": "gpt-4o", "governed": true, "prompt_variant": "baseline",
        "mcp_configured": true, "mcp_tools_loaded": ["get_booking", ...],
        "legacy_date_compat": true,
-       "outbound_auth": {"mode": "static-api-key", "agent_identity_in_use": false}}
+       "outbound_auth": {"mode": "none", "credential_present": false}}
 ```
 
 The agent is built during startup rather than on first request, so MCP
@@ -192,11 +214,10 @@ is unreachable or the credential is wrong.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest tests/ -q                     # 47 tests, ~10s
+pytest tests/ -q                     # 55 tests, ~10s
 
 export OPENAI_API_KEY_DEFAULT=sk-...
 export HOTEL_MCP_URL=http://localhost:9000/mcp
-export HOTEL_MCP_API_KEY=dev-read
 python main.py
 ```
 
@@ -236,14 +257,16 @@ validates tokens. See `web/README.md`.
 | Field | Value |
 |---|---|
 | Language | Python 3.11 |
-| App Path | `agent/hotel-agent` |
+| App Path | `agent/` |
 | Start Command | `python main.py` |
 | Port | 8000 |
 | Agent Interface | Chat Agent |
 
-Attach the hotel-mcp Tool Configuration, mapping `url` to `HOTEL_MCP_URL` and
-`apikey` to `HOTEL_MCP_API_KEY`. The agent discovers tools once at startup, so
+Attach the hotel-mcp Tool Configuration, mapping `url` to `HOTEL_MCP_URL` and,
+if the proxy expects a key, `apikey` to `HOTEL_MCP_API_KEY`. For an
+OAuth2-protected proxy, set the `HOTEL_MCP_TOKEN_URL` / `CLIENT_ID` /
+`CLIENT_SECRET` trio instead. The agent discovers tools once at startup, so
 redeploy after attaching it.
 
 Two deployments are built from this same path for Exercise 3, differing only in
-name and in the identity attached to them.
+name and in the credential attached to them. The code is byte-identical.

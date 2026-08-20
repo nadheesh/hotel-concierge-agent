@@ -34,6 +34,9 @@ import argparse
 import base64
 import json
 import os
+import socket
+import socketserver
+import subprocess
 import sys
 import time
 import urllib.error
@@ -77,6 +80,41 @@ OAUTH_REDIRECT_URI=http://localhost:5500/
 GUEST_ID=guest-priya
 GUEST_NAME=Priya Raman
 """
+
+
+class Server(ThreadingHTTPServer):
+    """ThreadingHTTPServer minus the reverse-DNS lookup at bind time.
+
+    ``http.server.HTTPServer.server_bind`` calls ``socket.getfqdn()`` purely to
+    populate ``server_name``, which this server never uses. On a machine with
+    slow or absent reverse DNS — a VPN, an ssh tunnel, a captive network — that
+    lookup blocks for many seconds or hangs outright, and startup silently
+    stalls after the socket is already bound. Skip it and take the host as given.
+    """
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host or socket.gethostname()
+        self.server_port = port
+
+
+def _port_holders(port: int) -> list[str]:
+    """Name whatever is listening, so the error says what to stop rather than
+    just that the port is taken. Best effort: lsof may be absent."""
+    try:
+        out = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip().splitlines()
+    except Exception:
+        return []
+    lines = []
+    for row in out[1:]:
+        parts = row.split()
+        if len(parts) >= 2:
+            lines.append(f"{parts[0]} (pid {parts[1]})")
+    return lines
 
 
 def load_env() -> dict[str, str]:
@@ -201,34 +239,64 @@ def main() -> None:
     p.add_argument("--port", type=int, default=5500)
     args = p.parse_args()
 
+    # Line-buffer stdout: Python block-buffers when redirected, which hid the
+    # startup banner under nohup/tee — exactly where the stated auth mode
+    # matters most.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
+
     env = load_env()
     Handler.env = env
     Handler.force_mode = "none" if args.no_auth else None
     mode = Handler.force_mode or env.get("AUTH_MODE", "broker").strip().lower()
 
-    print(f"\nGrand Meridian console  http://localhost:{args.port}/")
-    print(f"  auth mode   {mode}{'  (forced by --no-auth)' if args.no_auth else ''}")
-    print(f"  agent       {env.get('AGENT_URL','(unset)')}")
-    print(f"  acting as   {env.get('GUEST_NAME','(none)')} / {env.get('GUEST_ID','(none)')}")
+    if mode not in ("none", "broker", "pkce"):
+        sys.exit(f"Unknown AUTH_MODE {mode!r}. Use none, broker or pkce.")
+
+    # Bind BEFORE printing anything. Announcing a URL and then failing to bind
+    # reads as "the server started and something else broke", which sends you
+    # looking in the wrong place entirely.
+    try:
+        httpd = Server(("0.0.0.0", args.port), Handler)
+    except OSError as e:
+        if e.errno not in (48, 98):  # EADDRINUSE on macOS / Linux
+            raise
+        print(f"\nPort {args.port} is already in use, so the console did not start.",
+              file=sys.stderr)
+        holders = _port_holders(args.port)
+        if holders:
+            print("  held by:", file=sys.stderr)
+            for line in holders:
+                print(f"    {line}", file=sys.stderr)
+            print("  If that is an older console of your own, stop it with:", file=sys.stderr)
+            print("    pkill -f web/serve.py", file=sys.stderr)
+        print(f"  Or pick another port:  python web/serve.py --port {args.port + 1}",
+              file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\nGrand Meridian console  http://localhost:{args.port}/", flush=True)
+    print(f"  auth mode   {mode}{'  (forced by --no-auth)' if args.no_auth else ''}", flush=True)
+    print(f"  agent       {env.get('AGENT_URL','(unset)')}", flush=True)
+    print(f"  acting as   {env.get('GUEST_NAME','(none)')} / {env.get('GUEST_ID','(none)')}", flush=True)
 
     if mode == "none":
-        print("\n  NO SECURITY. No token is sent. Only valid against an unprotected agent.")
+        print("\n  NO SECURITY. No token is sent. Only valid against an unprotected agent.", flush=True)
     elif mode == "broker":
         ready = bool(env.get("OAUTH_TOKEN_URL") and env.get("OAUTH_CLIENT_ID") and env.get("OAUTH_CLIENT_SECRET"))
-        print(f"  token broker {'ready' if ready else 'NOT CONFIGURED - fill in dev/web.env'}")
-        print("  client secret is held here, server-side. The browser only receives a token.")
+        print(f"  token broker {'ready' if ready else 'NOT CONFIGURED - fill in dev/web.env'}", flush=True)
+        print("  client secret is held here, server-side. The browser only receives a token.", flush=True)
     elif mode == "pkce":
         ok = bool(env.get("OAUTH_AUTHORIZE_URL") and env.get("OAUTH_CLIENT_ID"))
-        print(f"  pkce        {'ready' if ok else 'NOT CONFIGURED - need OAUTH_AUTHORIZE_URL and OAUTH_CLIENT_ID'}")
-        print(f"  redirect    {env.get('OAUTH_REDIRECT_URI','(unset)')} — must be registered at the IdP")
-    else:
-        sys.exit(f"Unknown AUTH_MODE {mode!r}. Use none, broker or pkce.")
+        print(f"  pkce        {'ready' if ok else 'NOT CONFIGURED - need OAUTH_AUTHORIZE_URL and OAUTH_CLIENT_ID'}", flush=True)
+        print(f"  redirect    {env.get('OAUTH_REDIRECT_URI','(unset)')} — must be registered at the IdP", flush=True)
 
     # Flush explicitly: the banner is the only place the active auth mode is
     # stated, and Python buffers stdout when it is not a TTY (nohup, tee, a
     # supervisor), which would hide it exactly when it matters most.
     print("\n  Ctrl-C to stop.\n", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", args.port), Handler).serve_forever()
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":
