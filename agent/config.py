@@ -18,11 +18,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # --- Model -----------------------------------------------------------
     openai_model: str = Field(default="gpt-4o", validation_alias="OPENAI_MODEL")
-    # Governed mode: set by an AM LLM Service Provider. Presence is the mode gate.
+    # One key slot for both modes. OPENAI_URL presence is the only mode gate:
+    # set it and the key goes to the AM gateway on an API-Key header, leave it
+    # empty and the same key goes straight to OpenAI.
     openai_url: str = Field(default="", validation_alias="OPENAI_URL")
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
-    # BYO mode: direct to OpenAI, used only when openai_url is empty.
-    openai_api_key_default: str = Field(default="", validation_alias="OPENAI_API_KEY_DEFAULT")
 
     # --- hotel-mcp endpoint -----------------------------------------------
     hotel_mcp_url: str = Field(default="", validation_alias="HOTEL_MCP_URL")

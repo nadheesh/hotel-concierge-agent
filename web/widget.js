@@ -42,12 +42,11 @@
   })();
 
   function resolveEndpoint() {
-    return (
-      endpointOverride ||
-      (window.GM_AUTH && window.GM_AUTH.agentUrl()) ||
-      window.GRAND_MERIDIAN_AGENT_URL ||
-      "http://localhost:8000/chat"
-    );
+    // ?agent= takes a base url too, so it gets the same /chat resolution the
+    // configured AGENT_URL already received server-side.
+    const resolve = (window.GM_AUTH && window.GM_AUTH.chatEndpoint) || ((u) => u);
+    if (endpointOverride) return resolve(endpointOverride);
+    return (window.GM_AUTH && window.GM_AUTH.agentUrl()) || resolve(window.GRAND_MERIDIAN_AGENT_URL);
   }
 
   const PANEL_W = 380;
@@ -292,11 +291,6 @@
     if (firstOpen) {
       firstOpen = false;
       paintStatus();
-      if (needsSignIn()) {
-        renderSignIn();
-        setSendingState(true);
-        return;
-      }
       renderBot(GREETING, { greeting: true });
       renderChips();
     }
@@ -329,27 +323,6 @@
       statusEl.innerHTML = `<span style="color:#F4A8A0">● not authorised</span>${who}`;
       statusEl.title = s.reason || "";
     }
-  }
-
-  function needsSignIn() {
-    const s = window.GM_AUTH ? window.GM_AUTH.state() : { ready: true };
-    return s.mode === "pkce" && !s.ready;
-  }
-
-  function renderSignIn(reason) {
-    const wrap = el("div", `align-self:center;text-align:center;padding:8px 0;`);
-    wrap.appendChild(el("div",
-      `font-size:13px;color:#6b6b6b;margin-bottom:10px;line-height:1.5;`,
-      escapeHtml(reason || "Please sign in to speak with the concierge.")));
-    const btn = el("button",
-      `background:#1B2B4B;color:#C9A84C;border:none;font-family:inherit;font-size:13px;
-       padding:9px 18px;cursor:pointer;letter-spacing:0.04em;`, "Sign in");
-    btn.addEventListener("click", () => {
-      window.GM_AUTH.signIn().catch((e) => showToast(String(e.message || e)));
-    });
-    wrap.appendChild(btn);
-    thread.appendChild(wrap);
-    scrollToBottom();
   }
 
   inputRow.addEventListener("submit", (e) => {

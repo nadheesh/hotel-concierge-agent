@@ -5,10 +5,16 @@ connects to the agent in Exercise 1, and it is the only place in the fixture
 where OAuth2 shows up on the inbound side.
 
 ```bash
-python web/serve.py --no-auth     # no security, browser calls the agent directly
-python web/serve.py               # secured, an access token is attached to every call
-python web/serve.py --port 5501   # if 5500 is taken
+./web/run.sh --no-auth            # no security, browser calls the agent directly
+./web/run.sh                      # secured, an access token is attached to every call
+./web/run.sh --no-auth --port 5501
 ```
+
+`run.sh` creates the shared `.venv` on first run and passes every argument
+through to `serve.py`. Nothing is installed into it: `serve.py` is stdlib-only,
+and it shares the venv purely so the Python version matches the rest of the
+project. `python3 web/serve.py --no-auth` works just as well if you would
+rather skip the wrapper.
 
 Then open http://localhost:5500/. The widget header shows which mode is live:
 **● unsecured**, **● secured (broker)** or **● not authorised**.
@@ -104,8 +110,26 @@ Seeded guests: `guest-priya`, `guest-marcus`, `guest-sofia`, `guest-daniel`,
 
 ## Pointing at a deployed agent
 
-`AGENT_URL` in `dev/web.env`, or `?agent=<url>` for one load — that persists to
-`localStorage` and sticks until `?agent=reset`.
+The console is a standalone client. The agent normally runs somewhere else —
+deployed behind the Agent Manager gateway — and nothing about running the
+console locally assumes otherwise.
+
+Three ways to aim it, in ascending precedence:
+
+```bash
+# 1. persistent, in dev/web.env
+AGENT_URL=https://<gateway>/chat
+
+# 2. one run
+AGENT_URL=https://<gateway>/chat ./web/run.sh
+
+# 3. one browser load, persisted to localStorage until ?agent=reset
+open 'http://localhost:5500/?agent=https://<gateway>/chat'
+```
+
+`run.sh` does a soft reachability check on whatever it resolves and prints a
+note if it cannot reach the origin. It never blocks — the console is still
+worth opening to inspect the auth state when the agent is down.
 
 In a deployed setup this must be the **gateway** URL, not the agent's own
 address. Pointing it at the agent directly bypasses the thing being tested, and

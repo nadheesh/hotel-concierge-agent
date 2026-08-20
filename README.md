@@ -22,7 +22,7 @@ mcp/hotel-mcp/          Booking MCP server. 7 tools split read/write, seeded dat
 evaluators/security/    7 category judges + shared rubric.
 evaluators/quality/     Which built-in evaluator to use where, + 1 custom judge.
 fixtures/               36 quality cases with ground truth, 43 security cases.
-scripts/                Traffic generation, cost burn, fixture reset, bring-up.
+scripts/                Bring-up, venv bootstrap, traffic generation, cost burn, reset.
 web/                    Guest console. The OAuth2 client for Exercise 1.
 docs/                   Facilitator guide and participant briefs.
 vip_crew/               External CrewAI agent, for the external-agent extension.
@@ -62,7 +62,7 @@ python server.py &                              # -> :9000/mcp
 # 2. agent
 cd ../../agent && pip install -r requirements.txt
 pytest tests/ -q                                # 55 passed
-export OPENAI_API_KEY_DEFAULT=sk-...
+export OPENAI_API_KEY=sk-...
 export HOTEL_MCP_URL=http://localhost:9000/mcp
 python main.py &                                # -> :8000
 
@@ -105,9 +105,14 @@ connects in Exercise 1. It runs in one of three modes, chosen by a flag and a
 config file:
 
 ```bash
-python web/serve.py --no-auth     # no security: browser calls the agent directly
-python web/serve.py               # secured: an OAuth2 access token on every call
+./web/run.sh --no-auth            # no security: browser calls the agent directly
+./web/run.sh                      # secured: an OAuth2 access token on every call
+AGENT_URL=https://<gateway>/chat ./web/run.sh    # against a deployed agent
 ```
+
+`run.sh` creates the shared `.venv` if it is missing. The console is
+stdlib-only, so nothing is installed into it, and it runs standalone against an
+agent hosted anywhere.
 
 Secured mode has two shapes. `broker` keeps the client id and secret on the dev
 server and hands the browser only a short-lived token; `pkce` uses

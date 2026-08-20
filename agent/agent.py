@@ -70,10 +70,12 @@ _agent = None
 
 
 def _llm_kwargs() -> dict[str, Any]:
-    """OPENAI_URL presence is the mode gate. In governed mode the AM gateway
-    expects the key on an ``API-Key`` header rather than ``Authorization:
-    Bearer``, so the SDK's default Authorization header is suppressed. In BYO
-    mode we go straight to OpenAI with OPENAI_API_KEY_DEFAULT."""
+    """OPENAI_URL presence is the only mode gate, and OPENAI_API_KEY carries the
+    credential either way.
+
+    Governed: the AM gateway expects the key on an ``API-Key`` header rather
+    than ``Authorization: Bearer``, so the SDK's default Authorization header is
+    suppressed. Ungoverned: the same key goes straight to OpenAI."""
     if settings.governed:
         # openai>=1.50 rejects an empty api_key before default_headers can
         # override anything, so pass a sentinel. default_headers blanks
@@ -83,7 +85,7 @@ def _llm_kwargs() -> dict[str, Any]:
             "api_key": "unused",
             "default_headers": {"API-Key": settings.openai_api_key, "Authorization": ""},
         }
-    return {"api_key": settings.openai_api_key_default}
+    return {"api_key": settings.openai_api_key}
 
 
 async def _discover_tools() -> None:

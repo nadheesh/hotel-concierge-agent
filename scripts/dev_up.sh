@@ -17,12 +17,9 @@ MCP_PORT="${MCP_PORT:-9100}"
 AGENT_PORT="${AGENT_PORT:-8000}"
 mkdir -p dev
 
-if [ ! -x "$VENV/bin/python" ]; then
-  echo "No .venv found. Create it first:"
-  echo "  python3 -m venv .venv"
-  echo "  .venv/bin/pip install -r agent/requirements.txt -r mcp/hotel-mcp/requirements.txt"
-  exit 1
-fi
+# Creates .venv and installs dependencies if needed; a no-op once warm.
+# shellcheck source=ensure_venv.sh
+source scripts/ensure_venv.sh agent mcp/hotel-mcp
 
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 for spec in "MCP_PORT:$MCP_PORT" "AGENT_PORT:$AGENT_PORT"; do
@@ -43,17 +40,12 @@ if [ ! -f dev/.env ]; then
 # Never reuse these in a shared deployment.
 
 # ---- PUT YOUR MODEL CREDENTIAL HERE -----------------------------------------
-# These are left COMMENTED so they cannot clobber a value already set in the
-# repo root .env, which is sourced first. Uncomment whichever mode you want.
+# Left COMMENTED so they cannot clobber a value already set in the repo root
+# .env, which is sourced first.
 #
-# BYO mode: a real OpenAI key. This is the slot the agent reads when OPENAI_URL
-# is empty. A key in OPENAI_API_KEY instead is ignored - the two slots do not
-# cross-fall-back, by design.
-#OPENAI_API_KEY_DEFAULT=sk-...
-#
-# Governed mode instead: set both of these and leave the one above commented.
+# One key, both modes. Set OPENAI_URL as well to route through the AM gateway.
+#OPENAI_API_KEY=sk-...
 #OPENAI_URL=https://<project>-<component>.example/<endpoint>/
-#OPENAI_API_KEY=<AM JWT>
 
 # Model is deliberately NOT set here. agent/.env owns it. Anything
 # exported by this script beats that file, so pinning a model here would
@@ -84,33 +76,10 @@ fi
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 set -a; . dev/.env; set +a
 
-# The two model-key slots have distinct purposes and deliberately do not
-# cross-fall-back, so a key in the wrong one silently yields no credential.
-# Warn rather than auto-mapping: this is exactly the misconfiguration the
-# fixture exists to surface, and papering over it here would hide it.
-if [ -z "${OPENAI_URL:-}" ] && [ -z "${OPENAI_API_KEY_DEFAULT:-}" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
-  case "${OPENAI_API_KEY}" in
-    sk-*)
-      # A plain OpenAI key sitting in the governed-mode slot with no gateway
-      # URL. For a local run, map it into the BYO slot rather than starting
-      # without a credential. This is a convenience of THIS script only - the
-      # agent's two key slots still do not cross-fall-back, which is what a
-      # deployed environment exercises.
-      export OPENAI_API_KEY_DEFAULT="$OPENAI_API_KEY"
-      unset OPENAI_API_KEY
-      echo
-      echo "NOTE: found a plain OpenAI key in OPENAI_API_KEY with no OPENAI_URL set."
-      echo "      Mapped it to OPENAI_API_KEY_DEFAULT (BYO mode) for this local run."
-      echo "      The agent itself does not do this - on a real deployment put the"
-      echo "      key in the slot that matches the mode you want."
-      ;;
-    *)
-      echo
-      echo "WARNING: OPENAI_API_KEY is set but OPENAI_URL is not, so the agent is in"
-      echo "         BYO mode and reads OPENAI_API_KEY_DEFAULT, which is empty."
-      echo "         For a governed deploy set OPENAI_URL as well."
-      ;;
-  esac
+if [ -z "${OPENAI_API_KEY:-}" ]; then
+  echo
+  echo "NOTE: OPENAI_API_KEY is not set, so the agent will start but cannot answer."
+  echo "      /health will report llm_client_built false. Put a key in .env or dev/.env."
 fi
 
 export HOTEL_MCP_URL="http://127.0.0.1:${MCP_PORT}/mcp"

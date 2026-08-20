@@ -14,7 +14,6 @@ def _reload(monkeypatch: pytest.MonkeyPatch, **env: str):
     for key in (
         "OPENAI_URL",
         "OPENAI_API_KEY",
-        "OPENAI_API_KEY_DEFAULT",
         "HOTEL_MCP_URL",
         "HOTEL_MCP_API_KEY",
         "HOTEL_MCP_TOKEN_URL",
@@ -47,15 +46,25 @@ class TestCredentialModes:
         assert kwargs["default_headers"]["Authorization"] == ""
         assert kwargs["api_key"] == "unused"
 
-    def test_byo_mode_uses_the_default_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        agent = _reload(monkeypatch, OPENAI_API_KEY_DEFAULT="sk-local")
+    def test_ungoverned_mode_sends_the_key_straight_to_openai(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _reload(monkeypatch, OPENAI_API_KEY="sk-local")
         kwargs = agent._llm_kwargs()
         assert kwargs == {"api_key": "sk-local"}
         assert "base_url" not in kwargs
 
-    def test_gateway_key_is_not_used_in_byo_mode(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # The two key slots have distinct purposes and must not cross-fall-back.
-        agent = _reload(monkeypatch, OPENAI_API_KEY="gateway-jwt")
+    def test_same_key_slot_serves_both_modes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # One slot, so a key can no longer land in the "wrong" one and silently
+        # leave the agent with no credential.
+        agent = _reload(monkeypatch, OPENAI_API_KEY="k")
+        assert agent._llm_kwargs()["api_key"] == "k"
+        agent = _reload(monkeypatch, OPENAI_API_KEY="k", OPENAI_URL="https://gw.example/v1")
+        assert agent._llm_kwargs()["default_headers"]["API-Key"] == "k"
+
+    def test_no_key_at_all_is_not_a_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # /health must stay reachable so an operator can see what is missing.
+        agent = _reload(monkeypatch)
         assert agent._llm_kwargs() == {"api_key": ""}
 
 
@@ -75,7 +84,7 @@ class TestReadyPayload:
         assert payload["outbound_auth"]["mode"] == "api-key"
 
     def test_reports_ungoverned_and_unconfigured(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        agent = _reload(monkeypatch, OPENAI_API_KEY_DEFAULT="sk-local")
+        agent = _reload(monkeypatch, OPENAI_API_KEY="sk-local")
         payload = agent._ready_payload()
         assert payload["governed"] is False
         assert payload["mcp_configured"] is False

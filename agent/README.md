@@ -147,15 +147,14 @@ runs and never commit a filled-in copy.
 
 ### Model credentials
 
-`OPENAI_URL` is the mode gate.
+One key slot, and `OPENAI_URL` is the only mode gate.
 
-| Mode | `OPENAI_URL` | `OPENAI_API_KEY` | `OPENAI_API_KEY_DEFAULT` | Result |
-|---|---|---|---|---|
-| BYO | unset | ignored | set | Direct to OpenAI, ungoverned |
-| Governed | set | set | ignored | Through the AM gateway, guardrails apply |
+| Mode | `OPENAI_URL` | `OPENAI_API_KEY` | Result |
+|---|---|---|---|
+| Ungoverned | unset | the key | Direct to OpenAI |
+| Governed | set | the key | Through the AM gateway, guardrails apply |
 
-The two key slots have distinct purposes and do not cross-fall-back. In
-governed mode the gateway expects the key on an `API-Key` header rather than
+In governed mode the gateway expects the key on an `API-Key` header rather than
 `Authorization: Bearer`, so the SDK's default Authorization header is blanked;
 see `_llm_kwargs()`.
 
@@ -216,7 +215,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest tests/ -q                     # 55 tests, ~10s
 
-export OPENAI_API_KEY_DEFAULT=sk-...
+export OPENAI_API_KEY=sk-...
 export HOTEL_MCP_URL=http://localhost:9000/mcp
 python main.py
 ```
