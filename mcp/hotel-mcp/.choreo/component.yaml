@@ -17,6 +17,6 @@ endpoints:
     service:
       basePath: /
       port: 9000
-    type: HTTP
+    type: REST
     networkVisibilities:
       - Organization
