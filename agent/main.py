@@ -11,12 +11,20 @@ trace shape the study is meant to evaluate.
 
 from __future__ import annotations
 
-import os
-
 import uvicorn
 
 from agent import app
 
+# Pinned, deliberately not read from PORT. Agent Manager injects PORT=8080, so
+# honouring it left the app on 8080 while the probe and the declared endpoint
+# looked for 8000: nothing inbound ever reached uvicorn, the liveness check
+# failed, and the pod was SIGTERMed and recycled every few minutes with a clean
+# shutdown and no error to explain it. 8000 is what the rest of the repo
+# assumes -- agent/README.md, docs/facilitator-guide.md, scripts/dev_up.sh and
+# the web client. If the platform probe ever targets 8080 instead, change this
+# constant rather than restoring the PORT lookup, so the bind port stays
+# something the repo states outright.
+PORT = 8000
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
