@@ -1,0 +1,29 @@
+# Only needed if Choreo forces a schema path on this component.
+#
+# MCP is JSON-RPC over a streamable-http session at /mcp, not a REST API, so
+# there is no faithful OpenAPI description of the tool surface. The real tool
+# contract is served by MCP itself via tools/list. This stub exists solely to
+# satisfy a required-field check — do not treat it as documentation.
+#
+# Prefer endpoint type HTTP in .choreo/component.yaml, which needs no schema.
+openapi: 3.0.3
+info:
+  title: hotel-mcp
+  version: "1.0.0"
+  description: >-
+    MCP server (streamable-http). Tool discovery and invocation happen over
+    JSON-RPC at /mcp; see scopes.py for the read/write tool split that the
+    gateway in front of this server is expected to enforce.
+paths:
+  /mcp:
+    post:
+      summary: MCP streamable-http endpoint (JSON-RPC)
+      responses:
+        "200":
+          description: JSON-RPC response
+  /health:
+    get:
+      summary: Liveness and readiness probe
+      responses:
+        "200":
+          description: Server is up

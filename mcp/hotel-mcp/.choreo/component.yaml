@@ -1,0 +1,22 @@
+# Choreo component descriptor for hotel-mcp.
+#
+# VISIBILITY IS DELIBERATE. This server authenticates nobody and authorises
+# nothing (see the module docstring in server.py) — every tool, including the
+# write tools, runs for any caller that can reach it. It must sit behind the
+# Agent Manager MCP Proxy, which enforces the read/write split documented in
+# scopes.py. Never widen networkVisibilities to Public.
+#
+# basePath stays "/" because the app mounts its own paths at the root:
+# streamable-http at /mcp, plus /health and the facilitator /admin routes.
+# Consumers therefore use <endpoint-url>/mcp as HOTEL_MCP_URL.
+schemaVersion: 1.2
+
+endpoints:
+  - name: hotel-mcp
+    displayName: Hotel MCP (streamable-http)
+    service:
+      basePath: /
+      port: 9000
+    type: HTTP
+    networkVisibilities:
+      - Organization
