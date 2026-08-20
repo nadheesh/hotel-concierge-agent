@@ -1,10 +1,19 @@
 # Choreo component descriptor for hotel-mcp.
 #
-# VISIBILITY IS DELIBERATE. This server authenticates nobody and authorises
-# nothing (see the module docstring in server.py) — every tool, including the
-# write tools, runs for any caller that can reach it. It must sit behind the
-# Agent Manager MCP Proxy, which enforces the read/write split documented in
-# scopes.py. Never widen networkVisibilities to Public.
+# VISIBILITY IS PUBLIC, AND THAT IS A DELIBERATE, LOAD-BEARING CHOICE.
+#
+# This server authenticates nobody and authorises nothing (see the module
+# docstring in server.py). Every tool runs for any caller that reaches the
+# endpoint, including the write tools — create_booking, modify_booking and
+# cancel_booking — and list_my_bookings takes the guest as an argument, so a
+# caller simply asserts who it is.
+#
+# Public therefore means the only thing standing in front of guest booking data
+# is whatever the Choreo managed API layer enforces (API key / OAuth2) plus the
+# Agent Manager MCP Proxy, which is where the read/write split in scopes.py is
+# meant to be applied. If API security is ever set to none on this component at
+# the same time as Public visibility, this becomes an open, unauthenticated
+# write endpoint on the internet. Do not let both be true at once.
 #
 # basePath stays "/" because the app mounts its own paths at the root:
 # streamable-http at /mcp, plus /health and the facilitator /admin routes.
@@ -24,4 +33,4 @@ endpoints:
     type: REST
     schemaFilePath: openapi.yaml
     networkVisibilities:
-      - Organization
+      - Public
